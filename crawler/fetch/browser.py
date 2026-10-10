@@ -5,7 +5,7 @@
 """
 
 from ..errors import FetchError
-from .types import FetchResult, Tier
+from .types import FetchResult
 
 TIMEOUT_MS = 30_000
 SETTLE_MS = 1_500   # JS 렌더링 대기
@@ -17,43 +17,12 @@ class BrowserPool:
         self._browser = None
         self._contexts: dict[str, object] = {}
 
-    def _ensure_browser(self):
-        if self._browser is None:
-            from playwright.sync_api import sync_playwright
-            self._pw = sync_playwright().start()
-            self._browser = self._pw.chromium.launch(headless=True)
-        return self._browser
-
-    def _context(self, site: str, cookies: dict[str, str] | None, user_agent: str | None, url: str):
-        ctx = self._contexts.get(site)
-        if ctx is None:
-            kwargs = {"locale": "ko-KR"}
-            if user_agent:
-                kwargs["user_agent"] = user_agent
-            ctx = self._ensure_browser().new_context(**kwargs)
-            if cookies:
-                ctx.add_cookies([{"name": k, "value": v, "url": url} for k, v in cookies.items()])
-            self._contexts[site] = ctx
-        return ctx
-
     def fetch(self, site: str, url: str, cookies: dict[str, str] | None = None,
               user_agent: str | None = None) -> FetchResult:
         try:
-            ctx = self._context(site, cookies, user_agent, url)
-            page = ctx.new_page()
-            try:
-                resp = page.goto(url, wait_until="domcontentloaded", timeout=TIMEOUT_MS)
-                page.wait_for_timeout(SETTLE_MS)
-                html = page.content()
-                status = resp.status if resp else 0
-                ua = page.evaluate("navigator.userAgent")
-            finally:
-                page.close()
-            got_cookies = {c["name"]: c["value"] for c in ctx.cookies()}
+            return self._load(site, url, cookies, user_agent)
         except Exception as e:
-            first_line = str(e).strip().splitlines()[0] if str(e).strip() else type(e).__name__
-            raise FetchError(f"playwright 실패: {first_line}") from e
-        return FetchResult(html=html, status=status, tier=Tier.PLAYWRIGHT, cookies=got_cookies, user_agent=ua)
+            raise FetchError(f"playwright 실패: {_first_line(e)}") from e
 
     def close(self) -> None:
         for ctx in self._contexts.values():
@@ -68,3 +37,43 @@ class BrowserPool:
         if self._pw:
             self._pw.stop()
             self._pw = None
+
+    def _load(self, site: str, url: str, cookies: dict[str, str] | None,
+              user_agent: str | None) -> FetchResult:
+        ctx = self._context(site, url, cookies, user_agent)
+        page = ctx.new_page()
+        try:
+            resp = page.goto(url, wait_until="domcontentloaded", timeout=TIMEOUT_MS)
+            page.wait_for_timeout(SETTLE_MS)
+            html = page.content()
+            status = resp.status if resp else 0
+            ua = page.evaluate("navigator.userAgent")
+        finally:
+            page.close()
+        got_cookies = {c["name"]: c["value"] for c in ctx.cookies()}
+        return FetchResult(html=html, status=status, cookies=got_cookies, user_agent=ua)
+
+    def _context(self, site: str, url: str, cookies: dict[str, str] | None, user_agent: str | None):
+        ctx = self._contexts.get(site)
+        if ctx is None:
+            kwargs = {"locale": "ko-KR"}
+            if user_agent:
+                kwargs["user_agent"] = user_agent
+            ctx = self._ensure_browser().new_context(**kwargs)
+            if cookies:
+                ctx.add_cookies([{"name": k, "value": v, "url": url} for k, v in cookies.items()])
+            self._contexts[site] = ctx
+        return ctx
+
+    def _ensure_browser(self):
+        if self._browser is None:
+            from playwright.sync_api import sync_playwright
+            self._pw = sync_playwright().start()
+            self._browser = self._pw.chromium.launch(headless=True)
+        return self._browser
+
+
+def _first_line(e: Exception) -> str:
+    """오류 메시지의 첫 줄. 메시지가 없으면 예외 클래스 이름."""
+    text = str(e).strip()
+    return text.splitlines()[0] if text else type(e).__name__

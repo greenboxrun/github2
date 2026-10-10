@@ -22,19 +22,23 @@
 
 ## 구조
 ```
-run.py                     # 유일한 진입점: 전체/일부 실행 + 결과 표 + report.json
+run.py                     # 유일한 진입점: CLI 인자 처리 → runner 실행 → 저장·표 출력
 crawler/
-  models.py                # Post (공통 인터페이스)
+  paths.py                 # 프로젝트 경로 한곳 정의 (result/, 세션 캐시 등)
+  models.py                # Post (공통 인터페이스), SiteReport (리포트 한 줄)
   base.py                  # BaseSite: 설정값 + parse() + 공통 validate()
   errors.py                # FetchError / ParseError / ValidationError
   timeutil.py              # parse_kst() KST→UTC, parse_count() "1.2만"→12000
+  runner.py                # 사이트 단위 실행: 목록 URL 순회, 중복 제거, 사이트 간 예외 격리
+  report.py                # 콘솔 결과 표
   storage.py               # result/ 아래 저장
   fetch/
-    chain.py               # REQUEST → PLAYWRIGHT → FLARESOLVERR 단계 전환
+    chain.py               # REQUEST → PLAYWRIGHT → FLARESOLVERR 단계 전환 (계획 → 시도 → 기억)
+    types.py               # Tier (단계 enum), FetchResult
     http.py                # 1단계 curl_cffi (크롬 TLS 지문)
     browser.py             # 2단계 Playwright (실행당 브라우저 1개, 사이트별 context)
     flaresolverr.py        # 3단계 FlareSolverr (FLARESOLVERR_URL 환경변수로 주소 변경 가능)
-    session_cache.py       # 쿠키+UA, 마지막 성공 단계 기억
+    session_cache.py       # 쿠키+UA, 마지막 성공 단계 기억 (SessionState)
     throttle.py            # 도메인별 요청 간격 (request_delay + 30~100% 랜덤 지터)
   sites/
     __init__.py            # SITES 레지스트리

@@ -19,8 +19,8 @@ class Tier(IntEnum):
 
 @dataclass
 class FetchResult:
+    """단계 하나가 받아온 응답. 브라우저 단계에서만 cookies/user_agent가 채워집니다."""
     html: str
     status: int
-    tier: Tier
     cookies: dict[str, str] = field(default_factory=dict)
     user_agent: str | None = None

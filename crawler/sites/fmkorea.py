@@ -10,7 +10,7 @@
 import re
 from urllib.parse import urljoin
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 from ..base import BaseSite
 from ..errors import ParseError
@@ -38,35 +38,39 @@ class Fmkorea(BaseSite):
     min_posts = 10
 
     def parse(self, html: str, page_url: str) -> list[Post]:
-        soup = BeautifulSoup(html, "html.parser")
-        rows = soup.select(SEL_ROW)
+        rows = BeautifulSoup(html, "html.parser").select(SEL_ROW)
         if not rows:
             raise ParseError(f"목록 행 없음 ({SEL_ROW})")
 
         posts = []
         for tr in rows:
-            link = tr.select_one(SEL_TITLE)
-            if not link:
-                continue  # 광고/구분 행
-            m = RE_DOC_ID.search(link.get("href", ""))
-            if not m:
-                raise ParseError(f"document_srl 없음: {link.get('href')}")
-            doc_id = m.group(1)
-
-            comment = tr.select_one(SEL_COMMENT)
-            time_cell = tr.select_one(SEL_TIME)
-            view = tr.select_one(SEL_VIEW)
-            like = tr.select_one(SEL_LIKE)
-
-            posts.append(Post(
-                site=self.name,
-                post_id=doc_id,
-                title=link.get_text(strip=True),
-                url=urljoin(BASE_URL, f"/{doc_id}"),
-                created_at=parse_kst(time_cell.get_text(strip=True)) if time_cell else None,
-                # 댓글이 0개면 replyNum 링크 자체가 없습니다.
-                comment_count=parse_count(comment.get_text()) if comment else 0,
-                view_count=parse_count(view.get_text()) if view else None,
-                like_count=parse_count(like.get_text()) if like else None,
-            ))
+            post = self._to_post(tr)
+            if post is not None:
+                posts.append(post)
         return posts
+
+    def _to_post(self, tr: Tag) -> Post | None:
+        link = tr.select_one(SEL_TITLE)
+        if not link:
+            return None  # 광고/구분 행
+
+        m = RE_DOC_ID.search(link.get("href", ""))
+        if not m:
+            raise ParseError(f"document_srl 없음: {link.get('href')}")
+        doc_id = m.group(1)
+
+        comment = tr.select_one(SEL_COMMENT)
+        time_cell = tr.select_one(SEL_TIME)
+        view = tr.select_one(SEL_VIEW)
+        like = tr.select_one(SEL_LIKE)
+        return Post(
+            site=self.name,
+            post_id=doc_id,
+            title=link.get_text(strip=True),
+            url=urljoin(BASE_URL, f"/{doc_id}"),
+            created_at=parse_kst(time_cell.get_text(strip=True)) if time_cell else None,
+            # 댓글이 0개면 replyNum 링크 자체가 없습니다.
+            comment_count=parse_count(comment.get_text()) if comment else 0,
+            view_count=parse_count(view.get_text()) if view else None,
+            like_count=parse_count(like.get_text()) if like else None,
+        )

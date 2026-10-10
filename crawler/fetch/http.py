@@ -7,13 +7,14 @@ FlareSolverr가 얻어 둔 쿠키+UA가 있으면 같이 실어 보내 챌린지
 from curl_cffi import requests as cr
 
 from ..errors import FetchError
-from .types import FetchResult, Tier
+from .types import FetchResult
 
 TIMEOUT_SEC = 20
+ACCEPT_LANGUAGE = "ko-KR,ko;q=0.9,en;q=0.8"
 
 
 def fetch(url: str, cookies: dict[str, str] | None = None, user_agent: str | None = None) -> FetchResult:
-    headers = {"Accept-Language": "ko-KR,ko;q=0.9,en;q=0.8"}
+    headers = {"Accept-Language": ACCEPT_LANGUAGE}
     if user_agent:
         headers["User-Agent"] = user_agent
     try:
@@ -25,7 +26,6 @@ def fetch(url: str, cookies: dict[str, str] | None = None, user_agent: str | Non
     return FetchResult(
         html=resp.text,
         status=resp.status_code,
-        tier=Tier.REQUEST,
         cookies=dict(resp.cookies),
         user_agent=user_agent,
     )

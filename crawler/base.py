@@ -18,6 +18,8 @@ COMMON_BLOCK_MARKERS = [
     "Attention Required! | Cloudflare",
 ]
 
+REQUIRED_FIELDS = ("post_id", "title", "url")
+
 
 class BaseSite(ABC):
     name: str = ""                     # 사이트 키 = 파일명 = result/temp/<name>.json
@@ -36,18 +38,27 @@ class BaseSite(ABC):
         """
 
     def all_block_markers(self) -> list[str]:
-        return COMMON_BLOCK_MARKERS + self.block_markers
+        return [*COMMON_BLOCK_MARKERS, *self.block_markers]
 
     def validate(self, posts: list[Post]) -> None:
         """parse() 결과가 정상인지 공통 검사. 이상하면 ValidationError."""
+        self._check_count(posts)
+        for post in posts:
+            self._check_post(post)
+        self._check_created_at(posts)
+
+    def _check_count(self, posts: list[Post]) -> None:
         if len(posts) < self.min_posts:
             raise ValidationError(f"게시물 {len(posts)}건 (최소 {self.min_posts}건 필요)")
-        for p in posts:
-            missing = [f for f in ("post_id", "title", "url") if not getattr(p, f)]
-            if missing:
-                raise ValidationError(f"필수값 누락 {missing}: {p}")
-            if p.site != self.name:
-                raise ValidationError(f"site 값 불일치: {p.site!r} != {self.name!r}")
-        no_time = sum(1 for p in posts if p.created_at is None)
-        if no_time == len(posts):
+
+    def _check_post(self, post: Post) -> None:
+        missing = [f for f in REQUIRED_FIELDS if not getattr(post, f)]
+        if missing:
+            raise ValidationError(f"필수값 누락 {missing}: {post}")
+        if post.site != self.name:
+            raise ValidationError(f"site 값 불일치: {post.site!r} != {self.name!r}")
+
+    @staticmethod
+    def _check_created_at(posts: list[Post]) -> None:
+        if all(post.created_at is None for post in posts):
             raise ValidationError("created_at을 하나도 파싱하지 못함 (시각 형식 변경 의심)")

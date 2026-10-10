@@ -9,12 +9,11 @@
 
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 
+from ..paths import SESSION_DIR
+from ..timeutil import now_utc_iso
 from .types import Tier
-
-CACHE_DIR = Path(__file__).resolve().parents[2] / "result" / ".cache" / "sessions"
 
 
 @dataclass
@@ -29,24 +28,36 @@ class SessionState:
     def last_tier_enum(self) -> Tier | None:
         return Tier.from_label(self.last_tier) if self.last_tier else None
 
+    def forget_cookies(self) -> None:
+        """만료됐을 수 있는 쿠키+UA를 버립니다. 다음 요청은 쿠키 없이 나갑니다."""
+        self.cookies, self.user_agent = {}, None
+
+    def remember_success(self, tier: Tier, skipped: bool) -> None:
+        """성공한 단계를 기억합니다. 기억값 때문에 단계를 건너뛰었으면 카운트를 올리고, 아니면 0으로."""
+        self.runs_since_reset = self.runs_since_reset + 1 if skipped else 0
+        self.last_tier = tier.label
+
+    def reset_memory(self) -> None:
+        """전부 실패했을 때 호출. 다음 실행은 처음 단계부터 다시 시도합니다."""
+        self.last_tier, self.runs_since_reset = None, 0
+
 
 def _path(site: str) -> Path:
-    return CACHE_DIR / f"{site}.json"
+    return SESSION_DIR / f"{site}.json"
 
 
 def load(site: str) -> SessionState:
-    p = _path(site)
-    if not p.exists():
-        return SessionState()
     try:
-        return SessionState(**json.loads(p.read_text(encoding="utf-8")))
+        return SessionState(**json.loads(_path(site).read_text(encoding="utf-8")))
+    except FileNotFoundError:
+        return SessionState()
     except (ValueError, TypeError):
         return SessionState()  # 깨진 캐시는 무시
 
 
 def save(site: str, state: SessionState) -> None:
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    state.updated_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    SESSION_DIR.mkdir(parents=True, exist_ok=True)
+    state.updated_at = now_utc_iso()
     _path(site).write_text(json.dumps(asdict(state), ensure_ascii=False, indent=2), encoding="utf-8")
 
 

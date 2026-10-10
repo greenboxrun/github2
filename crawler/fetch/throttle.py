@@ -18,8 +18,8 @@ def wait(url: str, min_interval: float) -> float:
     """해당 도메인의 직전 요청 이후 충분히 지나지 않았으면 잠시 대기. 실제 대기 시간(초)을 반환."""
     host = urlparse(url).hostname or url
     target = min_interval * (1 + random.uniform(*JITTER_RATIO))
-    last = _last_request.get(host)
     slept = 0.0
+    last = _last_request.get(host)
     if last is not None:
         slept = max(0.0, target - (time.monotonic() - last))
         if slept:
