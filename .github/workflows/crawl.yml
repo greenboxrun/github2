@@ -1,0 +1,65 @@
+name: crawl
+
+# 수동 실행 전용 (Actions 탭 → crawl → Run workflow)
+on:
+  workflow_dispatch:
+    inputs:
+      sites:
+        description: "실행할 사이트 키 (공백 구분, 비우면 전체)"
+        required: false
+        default: ""
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      flaresolverr:
+        image: ghcr.io/flaresolverr/flaresolverr:latest
+        ports:
+          - 8191:8191
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: 의존성 설치
+        run: |
+          pip install -r requirements.txt
+          python -m playwright install --with-deps chromium
+
+      # 세션 쿠키 캐시 복원: 가장 최근에 저장된 캐시를 가져온다
+      - name: 세션 캐시 복원
+        uses: actions/cache/restore@v4
+        with:
+          path: result/.cache/sessions
+          key: sessions-${{ github.run_id }}
+          restore-keys: sessions-
+
+      - name: 수집
+        run: python run.py ${{ inputs.sites }}
+
+      # 캐시는 키를 덮어쓸 수 없으므로 실행마다 새 키로 저장한다 (실패해도 저장)
+      - name: 세션 캐시 저장
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: result/.cache/sessions
+          key: sessions-${{ github.run_id }}
+
+      # result/는 git 제외 대상이라 아티팩트로 남긴다 (쿠키 캐시는 제외)
+      - name: 결과 업로드
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: result-${{ github.run_number }}
+          path: |
+            result/
+            !result/.cache/
+          include-hidden-files: false
+          retention-days: 7
