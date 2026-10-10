@@ -9,6 +9,15 @@ on:
         required: false
         default: ""
 
+# 결과를 레포에 커밋하므로 쓰기 권한이 필요하다
+permissions:
+  contents: write
+
+# 동시에 두 번 돌면 결과 커밋이 충돌하므로 하나씩 실행
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
 jobs:
   crawl:
     runs-on: ubuntu-latest
@@ -42,7 +51,9 @@ jobs:
           restore-keys: sessions-
 
       - name: 수집
-        run: python run.py ${{ inputs.sites }}
+        env:
+          SITES: ${{ inputs.sites }}
+        run: python run.py $SITES
 
       # 캐시는 키를 덮어쓸 수 없으므로 실행마다 새 키로 저장한다 (실패해도 저장)
       - name: 세션 캐시 저장
@@ -52,14 +63,27 @@ jobs:
           path: result/.cache/sessions
           key: sessions-${{ github.run_id }}
 
-      # result/는 git 제외 대상이라 아티팩트로 남긴다 (쿠키 캐시는 제외)
-      - name: 결과 업로드
+      # 결과(result/temp, all.json, report.json)를 레포에 커밋 (실패해도 성공한 사이트 결과는 저장)
+      - name: 결과 커밋
         if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add result/
+          if git diff --cached --quiet; then
+            echo "변경된 결과 없음"
+            exit 0
+          fi
+          git commit -m "수집 결과 갱신 (run #${{ github.run_number }})"
+          git pull --rebase
+          git push
+
+      # 디버그 HTML은 커밋하지 않고, 실패했을 때만 아티팩트로 남긴다
+      - name: 디버그 HTML 업로드
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: result-${{ github.run_number }}
-          path: |
-            result/
-            !result/.cache/
-          include-hidden-files: false
+          name: debug-${{ github.run_number }}
+          path: result/debug/
+          if-no-files-found: ignore
           retention-days: 7

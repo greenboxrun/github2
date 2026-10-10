@@ -43,7 +43,8 @@ crawler/
   sites/
     __init__.py            # SITES 레지스트리
     <site>.py              # 사이트당 파일 하나
-result/                    # (git 제외)
+.github/workflows/crawl.yml  # 수동 실행 → 결과를 레포에 커밋 (FlareSolverr 서비스, 세션 캐시는 actions/cache)
+result/                    # Actions가 커밋 (.cache/, debug/는 git 제외)
   temp/<site>.json         # 사이트별 결과. 성공 시 삭제 후 새로 저장, 실패 시 기존 파일 유지
   all.json                 # temp 전체 병합
   report.json              # 마지막 실행 리포트 (단계별 시도 내역 포함)

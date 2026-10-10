@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
-result/
+# 결과(result/temp, all.json, report.json)는 Actions가 커밋한다.
+# 쿠키가 들어있는 세션 캐시와 디버그 HTML은 올리지 않는다.
+result/.cache/
+result/debug/
