@@ -1,20 +1,20 @@
 {
-  "run_at": "2026-10-10T08:28:39Z",
+  "run_at": "2026-10-10T08:40:53Z",
   "sites": [
     {
       "site": "fmkorea",
       "status": "OK",
       "start": "flaresolverr",
-      "tier": "request+cookie",
+      "tier": "flaresolverr",
       "posts": 20,
-      "seconds": 0.3,
+      "seconds": 16.5,
       "error": null,
       "debug_html": null,
       "attempts": [
         {
-          "tier": "request+cookie",
+          "tier": "flaresolverr",
           "ok": true,
-          "seconds": 0.25,
+          "seconds": 16.5,
           "error": null,
           "url": "https://www.fmkorea.com/index.php?mid=best2&listStyle=list"
         }
